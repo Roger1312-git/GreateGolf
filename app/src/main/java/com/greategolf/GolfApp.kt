@@ -6,6 +6,7 @@ import com.greategolf.data.CourseCatalog
 import com.greategolf.data.CourseLayoutRepository
 import com.greategolf.data.GolfDatabase
 import com.greategolf.data.GolfRepository
+import com.greategolf.data.TileRepository
 import com.greategolf.platform.LocationProvider
 import com.greategolf.platform.SwingSensor
 import com.greategolf.platform.VideoSwingAnalyzer
@@ -22,6 +23,7 @@ class GolfApp : Application() {
 
     val repository by lazy { GolfRepository(GolfDatabase.create(this)) }
     val courses: List<Course> by lazy { CourseCatalog.load(this) }
+    val tiles by lazy { TileRepository(this) }
     val layouts by lazy { CourseLayoutRepository(this) }
     val location by lazy { LocationProvider(this) }
     val swingSensor by lazy { SwingSensor(this) }

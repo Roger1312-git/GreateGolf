@@ -15,17 +15,20 @@ data class ScreenPt(val x: Float, val y: Float, val depth: Double)
  * green); [pitchDeg] is the camera elevation above the horizon (90 = straight down).
  */
 class OrbitCamera(
-    var target: V3,
-    var yawDeg: Double = 0.0,
-    var pitchDeg: Double = 35.0,
-    var distance: Double = 300.0,
+    val target: V3,
+    val yawDeg: Double = 0.0,
+    val pitchDeg: Double = 35.0,
+    val distance: Double = 300.0,
     private val fovDeg: Double = 50.0,
     private val near: Double = 1.0,
 ) {
     private class Basis(val cx: Double, val cy: Double, val cz: Double,
                         val r: V3, val up: V3, val f: V3)
 
-    private fun basis(): Basis {
+    private val cached: Basis by lazy { compute() }
+    private fun basis(): Basis = cached
+
+    private fun compute(): Basis {
         val psi = Math.toRadians(yawDeg); val phi = Math.toRadians(pitchDeg)
         val dir = V3(sin(psi), cos(psi))                       // horizontal look direction
         val cx = target.x - distance * cos(phi) * dir.x
@@ -50,6 +53,18 @@ class OrbitCamera(
     private fun toScreen(c: Cam, w: Float, h: Float): ScreenPt {
         val focal = h / (2 * tan(Math.toRadians(fovDeg) / 2))
         return ScreenPt((w / 2 + focal * c.x / c.d).toFloat(), (h / 2 - focal * c.y / c.d).toFloat(), c.d)
+    }
+
+    /** Ground-plane (z = 0) point under screen position ([sx], [sy]); null if the ray misses the ground. */
+    fun unproject(sx: Float, sy: Float, w: Float, h: Float): V3? {
+        val b = basis()
+        val focal = h / (2 * tan(Math.toRadians(fovDeg) / 2))
+        val a = (sx - w / 2) / focal
+        val c = -(sy - h / 2) / focal
+        val dir = V3(b.f.x + a * b.r.x + c * b.up.x, b.f.y + a * b.r.y + c * b.up.y, b.f.z + a * b.r.z + c * b.up.z)
+        if (dir.z >= -1e-9) return null
+        val t = -b.cz / dir.z
+        return V3(b.cx + t * dir.x, b.cy + t * dir.y, 0.0)
     }
 
     /** Null if the point is behind the near plane. */

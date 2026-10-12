@@ -21,7 +21,11 @@ data class CourseLayout(val features: List<GeoFeature>, val holes: List<Hole>) {
     val isEmpty get() = features.isEmpty() && holes.isEmpty()
 }
 
-data class HazardInfo(val type: FeatureType, val frontM: Double, val backM: Double)
+data class HazardInfo(
+    val type: FeatureType, val frontM: Double, val backM: Double,
+    /** Nearest / farthest vertex of the hazard from the reference point. */
+    val front: GeoPoint, val back: GeoPoint,
+)
 
 data class GreenInfo(val center: GeoPoint, val front: GeoPoint, val back: GeoPoint)
 
@@ -31,6 +35,13 @@ class LocalFrame(val origin: GeoPoint, val bearingDeg: Double) {
     private val cosLat = cos(Math.toRadians(origin.lat))
     private val sinB = sin(Math.toRadians(bearingDeg))
     private val cosB = cos(Math.toRadians(bearingDeg))
+
+    /** Inverse of [toLocal]. */
+    fun toGeo(u: Double, v: Double): GeoPoint {
+        val e = u * cosB + v * sinB
+        val n = -u * sinB + v * cosB
+        return GeoPoint(origin.lat + n / mPerDeg, origin.lng + e / (mPerDeg * cosLat))
+    }
 
     /** Returns (u = right of the hole axis, v = forward along it), in meters. */
     fun toLocal(p: GeoPoint): Pair<Double, Double> {
@@ -109,7 +120,7 @@ object LayoutOps {
             .filter { f -> f.ring.any { frame.toLocal(it).second > 0 } }
             .map { f ->
                 val d = f.ring.map { GeoMath.distanceMeters(player, it) }
-                HazardInfo(f.type, d.min(), d.max())
+                HazardInfo(f.type, d.min(), d.max(), f.ring[d.indexOf(d.min())], f.ring[d.indexOf(d.max())])
             }
             .filter { it.frontM <= maxM }
             .sortedBy { it.frontM }

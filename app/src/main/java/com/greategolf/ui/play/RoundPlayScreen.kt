@@ -58,6 +58,7 @@ import com.greategolf.domain.GeoPoint
 import com.greategolf.ui.RequireLocationOptional
 import com.greategolf.ui.appViewModel
 import com.greategolf.ui.course.CourseMap
+import com.greategolf.ui.course.Hole3DView
 import com.greategolf.ui.course.LayoutState
 import com.greategolf.ui.fmtToPar
 
@@ -85,6 +86,7 @@ fun RoundPlayScreen(
     val scores by vm.scores.collectAsState()
 
     var yards by rememberSaveable { mutableStateOf(false) }
+    var view3d by rememberSaveable { mutableStateOf(true) }
     var menu by remember { mutableStateOf(false) }
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var confirmFinish by remember { mutableStateOf(false) }
@@ -106,7 +108,14 @@ fun RoundPlayScreen(
     val player = fix?.point
 
     Box(Modifier.fillMaxSize().background(Color(0xFF1B3A22))) {
-        course?.let { c ->
+        val holeForView = ref?.hole
+        if (view3d && layout != null && holeForView != null) {
+            Hole3DView(
+                layout = layout, hole = holeForView, green = green, player = player, target = measure,
+                onTarget = { vm.measure.value = it }, yards = yards, satellite = true,
+                modifier = Modifier.fillMaxSize(), bottomPad = 250.dp,
+            )
+        } else course?.let { c ->
             CourseMap(
                 center = c.location, layout = layout, selected = ref?.index, satellite = true,
                 player = player, measure = measure, onTap = { vm.measure.value = it }, modifier = Modifier.fillMaxSize(),
@@ -126,6 +135,7 @@ fun RoundPlayScreen(
                         Text("Par $par" + (len?.let { " · %.0f $unitLabel".format(unit(it)) } ?: ""),
                             fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                     }
+                    if (layout != null && ref != null) OutlinedButton(onClick = { view3d = !view3d }, colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)) { Text(if (view3d) "2D" else "3D") }
                     OutlinedButton(onClick = { yards = !yards }, colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)) { Text(unitLabel) }
                     Box {
                         IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "Menu", tint = Color.White) }

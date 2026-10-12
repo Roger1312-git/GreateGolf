@@ -153,3 +153,36 @@ class StatsTest {
         assertEquals(FeatureType.WATER, from100[1].type)
     }
 }
+
+class Geometry3DTest {
+    @Test fun unprojectInvertsProject() {
+        val cam = OrbitCamera(V3(0.0, 150.0, 0.0), yawDeg = 25.0, pitchDeg = 50.0, distance = 260.0)
+        for (p in listOf(V3(0.0, 150.0), V3(30.0, 220.0), V3(-40.0, 90.0), V3(10.0, 300.0))) {
+            val s = cam.project(p, 900f, 1600f)!!
+            val back = cam.unproject(s.x, s.y, 900f, 1600f)!!
+            assertEquals(p.x, back.x, 0.01); assertEquals(p.y, back.y, 0.01)
+        }
+        // a ray above the horizon never hits the ground
+        assertNull(OrbitCamera(V3(0.0, 0.0, 0.0), pitchDeg = 10.0, distance = 100.0).unproject(450f, -2000f, 900f, 1600f))
+    }
+
+    @Test fun localFrameRoundTrip() {
+        val f = LocalFrame(GeoPoint(21.03, 105.85), 137.0)
+        val p = GeoPoint(21.0312, 105.8527)
+        val (u, v) = f.toLocal(p)
+        val back = f.toGeo(u, v)
+        assertEquals(p.lat, back.lat, 1e-9); assertEquals(p.lng, back.lng, 1e-9)
+    }
+
+    @Test fun mercatorTiles() {
+        assertEquals(1, WebMercator.tileX(0.0, 1)); assertEquals(1, WebMercator.tileY(-0.0001, 1))
+        val z = 18; val lat = 21.0285; val lng = 105.8542
+        val x = WebMercator.tileX(lng, z); val y = WebMercator.tileY(lat, z)
+        assertTrue(lng >= WebMercator.lngAt(x.toDouble(), z) && lng <= WebMercator.lngAt(x + 1.0, z))
+        assertTrue(lat <= WebMercator.latAt(y.toDouble(), z) && lat >= WebMercator.latAt(y + 1.0, z))
+        // ~150 m x 100 m box at z18 needs only a few tiles
+        val t = WebMercator.tilesCovering(lat, lng, lat + 0.001, lng + 0.0015, z)
+        assertTrue(t.size in 1..9)
+        assertTrue(WebMercator.tilesCovering(0.0, 0.0, 1.0, 1.0, 18).isEmpty()) // too large
+    }
+}
