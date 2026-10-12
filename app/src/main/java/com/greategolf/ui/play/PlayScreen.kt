@@ -43,6 +43,7 @@ private fun PlayContent(onOpenScorecard: (Long) -> Unit) {
     val fix by vm.fix.collectAsState()
     val toGreen by vm.distanceToGreen.collectAsState()
     val hasGreen by vm.hasGreen.collectAsState()
+    val frontBack by vm.greenFrontBack.collectAsState()
     val recommendation by vm.recommendation.collectAsState()
     val clubs by vm.clubStats.collectAsState()
     val selectedClub by vm.selectedClubId.collectAsState()
@@ -80,11 +81,14 @@ private fun PlayContent(onOpenScorecard: (Long) -> Unit) {
                     when {
                         toGreen != null -> {
                             Text(fmtDistance(toGreen!!), style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary)
-                            Text("tới green", style = MaterialTheme.typography.bodySmall)
+                            Text(
+                                "tới tâm green" + (frontBack?.let { " · trước %.0f · sau %.0f m".format(it.first, it.second) } ?: ""),
+                                style = MaterialTheme.typography.bodySmall,
+                            )
                             recommendation?.let { Text("Gợi ý: ${it.name}", style = MaterialTheme.typography.titleMedium) }
                         }
                         hasGreen -> Text("Đang chờ tín hiệu GPS…")
-                        else -> Text("Chưa có vị trí green hố này. Đứng trên green và bấm \"Đánh dấu green\" — lần sau app sẽ tự đo.", style = MaterialTheme.typography.bodySmall)
+                        else -> Text("Chưa có vị trí green hố này. Mở \"Xem sân\" trên Bản đồ để tải dữ liệu sân, hoặc đứng trên green và bấm \"Đánh dấu green\".", style = MaterialTheme.typography.bodySmall)
                     }
                     OutlinedButton(onClick = vm::markGreenHere) { Text("Đánh dấu green hố $hole tại đây") }
                 }

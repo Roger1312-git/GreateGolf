@@ -3,6 +3,7 @@ package com.greategolf
 import android.app.Application
 import com.greategolf.data.Course
 import com.greategolf.data.CourseCatalog
+import com.greategolf.data.CourseLayoutRepository
 import com.greategolf.data.GolfDatabase
 import com.greategolf.data.GolfRepository
 import com.greategolf.platform.LocationProvider
@@ -21,6 +22,7 @@ class GolfApp : Application() {
 
     val repository by lazy { GolfRepository(GolfDatabase.create(this)) }
     val courses: List<Course> by lazy { CourseCatalog.load(this) }
+    val layouts by lazy { CourseLayoutRepository(this) }
     val location by lazy { LocationProvider(this) }
     val swingSensor by lazy { SwingSensor(this) }
     val videoAnalyzer by lazy { VideoSwingAnalyzer(this) }

@@ -6,6 +6,9 @@ import com.greategolf.GolfApp
 import com.greategolf.data.HoleGreen
 import com.greategolf.data.Shot
 import com.greategolf.domain.ClubAdvisor
+import com.greategolf.domain.CourseLayout
+import com.greategolf.domain.GreenInfo
+import com.greategolf.domain.LayoutOps
 import com.greategolf.domain.DetectedShot
 import com.greategolf.domain.GeoFix
 import com.greategolf.domain.GeoMath
@@ -19,6 +22,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -45,13 +49,31 @@ class PlayViewModel(private val app: GolfApp) : ViewModel() {
     val message = MutableStateFlow<String?>(null)
     val swingSensorAvailable get() = app.swingSensor.isAvailable
 
-    /** Distance from the player to the recorded green of the current hole, in meters. */
-    val distanceToGreen: StateFlow<Double?> = combine(fix, greens, hole) { f, g, h ->
-        val green = g.firstOrNull { it.hole == h } ?: return@combine null
-        f?.let { GeoMath.distanceMeters(it.point, GeoPoint(green.lat, green.lng)) }
+    /** Course geometry already downloaded via "Xem sân" (disk cache only; no network here). */
+    private val layout = round.flatMapLatest { r ->
+        flow<CourseLayout?> { emit(r?.courseId?.let { app.layouts.cached(it) }) }
+    }
+
+    /** Green of the current hole: the player's own mark wins, else the mapped green polygon. */
+    val greenInfo: StateFlow<GreenInfo?> = combine(fix, greens, hole, layout) { f, g, h, l ->
+        g.firstOrNull { it.hole == h }?.let { return@combine GreenInfo(GeoPoint(it.lat, it.lng), GeoPoint(it.lat, it.lng), GeoPoint(it.lat, it.lng)) }
+        val candidates = l?.holes?.filter { it.ref == h }.orEmpty()
+        // 27/36-hole courses repeat hole numbers; take the one the player is closest to.
+        val hole = if (f == null) candidates.firstOrNull()
+        else candidates.minByOrNull { c -> c.line.minOf { GeoMath.distanceMeters(it, f.point) } }
+        if (l != null && hole != null) LayoutOps.greenOf(l, hole) else null
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    val hasGreen: StateFlow<Boolean> = combine(greens, hole) { g, h -> g.any { it.hole == h } }
+    val distanceToGreen: StateFlow<Double?> = combine(fix, greenInfo) { f, g ->
+        if (f != null && g != null) GeoMath.distanceMeters(f.point, g.center) else null
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    val greenFrontBack: StateFlow<Pair<Double, Double>?> = combine(fix, greenInfo) { f, g ->
+        if (f != null && g != null && g.front != g.back)
+            GeoMath.distanceMeters(f.point, g.front) to GeoMath.distanceMeters(f.point, g.back) else null
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    val hasGreen: StateFlow<Boolean> = greenInfo.combine(hole) { g, _ -> g != null }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     val recommendation = combine(distanceToGreen, clubStats) { d, c -> d?.let { ClubAdvisor.recommend(it, c) } }

@@ -76,3 +76,17 @@ fun RequireLocation(content: @Composable () -> Unit) {
         }
     }
 }
+
+/** Like [RequireLocation] but never blocks: renders [content] with whether permission is currently granted. */
+@Composable
+fun RequireLocationOptional(content: @Composable (granted: Boolean) -> Unit) {
+    val ctx = LocalContext.current
+    var granted by remember { mutableStateOf(hasLocationPermission(ctx)) }
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+        granted = hasLocationPermission(ctx)
+    }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        if (!granted) launcher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+    }
+    content(granted)
+}

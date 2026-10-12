@@ -85,7 +85,7 @@ class MapViewModel(private val app: GolfApp) : ViewModel() {
 }
 
 @Composable
-fun MapScreen(onPlayHere: () -> Unit, onOpenRound: (Long) -> Unit) {
+fun MapScreen(onPlayHere: () -> Unit, onOpenRound: (Long) -> Unit, onOpenCourse: (String) -> Unit) {
     val vm = appViewModel { MapViewModel(it) }
     val courses by vm.filtered.collectAsState()
     val query by vm.query.collectAsState()
@@ -140,8 +140,9 @@ fun MapScreen(onPlayHere: () -> Unit, onOpenRound: (Long) -> Unit) {
                         val km = GeoMath.distanceMeters(it, c.location) / 1000
                         Text("Cách bạn %.0f km".format(km), style = MaterialTheme.typography.bodySmall)
                     }
+                    Button(onClick = { onOpenCourse(c.id) }, modifier = Modifier.fillMaxWidth()) { Text("Xem sân · bản đồ hố · 3D") }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { vm.startRound(c) { onOpenRound(it) } }) { Text("Bắt đầu vòng") }
+                        OutlinedButton(onClick = { vm.startRound(c) { onOpenRound(it) } }) { Text("Bắt đầu vòng") }
                         OutlinedButton(onClick = { vm.startRound(c) { onPlayHere() } }) { Text("Chơi với GPS") }
                         OutlinedButton(onClick = { vm.select(null) }) { Text("Đóng") }
                     }

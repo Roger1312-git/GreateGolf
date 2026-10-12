@@ -25,6 +25,8 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.greategolf.ui.clubs.ClubsScreen
+import com.greategolf.ui.course.CourseMapScreen
+import com.greategolf.ui.course.Hole3DScreen
 import com.greategolf.ui.map.MapScreen
 import com.greategolf.ui.play.PlayScreen
 import com.greategolf.ui.score.RoundScreen
@@ -55,7 +57,9 @@ fun GolfRoot() {
         bottomBar = {
             NavigationBar {
                 Tab.entries.forEach { tab ->
-                    val selected = route == tab.route || (tab == Tab.Score && route?.startsWith("round/") == true)
+                    val selected = route == tab.route ||
+                        (tab == Tab.Score && route?.startsWith("round/") == true) ||
+                        (tab == Tab.Map && (route?.startsWith("course/") == true || route?.startsWith("hole3d/") == true))
                     NavigationBarItem(
                         selected = selected,
                         onClick = { go(tab) },
@@ -71,7 +75,18 @@ fun GolfRoot() {
                 MapScreen(
                     onPlayHere = { go(Tab.Play) },
                     onOpenRound = { id -> nav.navigate("round/$id") },
+                    onOpenCourse = { id -> nav.navigate("course/$id") },
                 )
+            }
+            composable("course/{id}", arguments = listOf(navArgument("id") { type = NavType.StringType })) { entry ->
+                val id = entry.arguments!!.getString("id")!!
+                CourseMapScreen(courseId = id, onBack = { nav.popBackStack() }, onOpen3D = { idx -> nav.navigate("hole3d/$id/$idx") })
+            }
+            composable(
+                "hole3d/{id}/{idx}",
+                arguments = listOf(navArgument("id") { type = NavType.StringType }, navArgument("idx") { type = NavType.IntType }),
+            ) { entry ->
+                Hole3DScreen(entry.arguments!!.getString("id")!!, entry.arguments!!.getInt("idx"), onBack = { nav.popBackStack() })
             }
             composable(Tab.Play.route) { PlayScreen(onOpenScorecard = { id -> nav.navigate("round/$id") }) }
             composable(Tab.Score.route) { RoundsScreen(onOpen = { id -> nav.navigate("round/$id") }) }
