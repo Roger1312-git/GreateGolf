@@ -186,3 +186,34 @@ class Geometry3DTest {
         assertTrue(WebMercator.tilesCovering(0.0, 0.0, 1.0, 1.0, 18).isEmpty()) // too large
     }
 }
+
+class Geometry2DTest {
+    @Test fun orthoRoundTripAndFit() {
+        val (cu, cv, s) = Ortho2D.fit(-20.0, 0.0, 20.0, 300.0, 400f, 800f, 20.0)
+        assertEquals(0.0, cu, 1e-9); assertEquals(150.0, cv, 1e-9)
+        assertEquals(800f / 340f, s.toFloat(), 1e-4f)   // height-limited
+        val o = Ortho2D(cu, cv, s, 400f, 800f, 12f, -7f)
+        assertEquals(35.0, o.u(o.sx(35.0)), 1e-3); assertEquals(210.0, o.v(o.sy(210.0)), 1e-3)
+        assertTrue(o.sy(300.0) < o.sy(0.0)) // green (far) is higher on screen than the tee
+    }
+
+    @Test fun scatterStaysInsidePolygon() {
+        val poly = listOf(V3(0.0, 0.0), V3(60.0, 0.0), V3(60.0, 40.0), V3(0.0, 40.0))
+        val pts = Geometry2D.scatterInPolygon(poly, 8.0, 500)
+        assertTrue(pts.size > 20)
+        assertTrue(pts.all { Geometry2D.pointInPolygon(it.x, it.y, poly) })
+        assertEquals(5, Geometry2D.scatterInPolygon(poly, 8.0, 5).size)
+        assertFalse(Geometry2D.pointInPolygon(70.0, 10.0, poly))
+    }
+
+    @Test fun parserReadsTreesPinsAndBoundaries() {
+        val json = """{"elements":[
+          {"type":"node","lat":10.0,"lon":106.0,"tags":{"natural":"tree"}},
+          {"type":"node","lat":10.001,"lon":106.0,"tags":{"golf":"pin"}},
+          {"type":"way","tags":{"golf":"out_of_bounds"},"geometry":[{"lat":10.0,"lon":106.0},{"lat":10.0,"lon":106.001}]},
+          {"type":"way","tags":{"natural":"tree_row"},"geometry":[{"lat":10.0,"lon":106.0},{"lat":10.0,"lon":106.001}]}]}"""
+        val l = com.greategolf.data.OverpassParser.parseLayout(json)
+        assertEquals(setOf(FeatureType.TREE, FeatureType.PIN, FeatureType.OB, FeatureType.TREE_ROW), l.features.map { it.type }.toSet())
+        assertEquals(1, l.features.first { it.type == FeatureType.TREE }.ring.size)
+    }
+}

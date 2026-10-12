@@ -21,7 +21,8 @@ class CourseLayoutRepository(context: Context) {
         "https://overpass.kumi.systems/api/interpreter",
     )
 
-    private fun cacheFile(courseId: String) = File(dir, "$courseId.json")
+    // v2: also stores trees / pins / out-of-bounds; older cache files are ignored and re-downloaded
+    private fun cacheFile(courseId: String) = File(dir, "$courseId.v2.json")
 
     /** Disk cache only; never touches the network. */
     suspend fun cached(courseId: String): CourseLayout? = withContext(Dispatchers.IO) {
@@ -46,7 +47,8 @@ class CourseLayoutRepository(context: Context) {
         val json = post(
             "[out:json][timeout:90];(" +
                 "way[\"golf\"]($bbox);relation[\"golf\"]($bbox);" +
-                "way[\"natural\"=\"water\"]($bbox);way[\"natural\"=\"wood\"]($bbox);" +
+                "way[\"natural\"=\"water\"]($bbox);way[\"natural\"=\"wood\"]($bbox);way[\"natural\"=\"tree_row\"]($bbox);" +
+                "node[\"golf\"=\"pin\"]($bbox);node[\"natural\"=\"tree\"]($bbox);" +
                 ");out geom;"
         )
         val layout = OverpassParser.parseLayout(json)

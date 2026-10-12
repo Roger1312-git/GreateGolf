@@ -5,7 +5,15 @@ import kotlin.math.cos
 import kotlin.math.hypot
 import kotlin.math.sin
 
-enum class FeatureType { GREEN, FAIRWAY, TEE, BUNKER, WATER, WOOD, ROUGH, CART_PATH }
+enum class FeatureType {
+    GREEN, FAIRWAY, TEE, BUNKER, WATER, WOOD, ROUGH, CART_PATH,
+    /** Out-of-bounds line (golf=out_of_bounds). Open polyline. */
+    OB,
+    /** Single tree (ring has one point) / a row of trees (open polyline). */
+    TREE, TREE_ROW,
+    /** Flag position (ring has one point). */
+    PIN,
+}
 
 /** A mapped course element. [ring] is a closed polygon, or an open line when [closed] is false. */
 data class GeoFeature(val type: FeatureType, val ring: List<GeoPoint>, val closed: Boolean)

@@ -85,7 +85,7 @@ private class MapHolder {
 }
 
 @Composable
-fun CourseMapScreen(courseId: String, onBack: () -> Unit, onOpen3D: (Int) -> Unit) {
+fun CourseMapScreen(courseId: String, onBack: () -> Unit, onOpen3D: (Int) -> Unit, onOpenHoles: () -> Unit, onOpenHoleMap: (Int) -> Unit) {
     val vm = appViewModel { CourseViewModel(it, courseId, null) }
     val state by vm.state.collectAsState()
     val selected by vm.selectedHole.collectAsState()
@@ -116,6 +116,7 @@ fun CourseMapScreen(courseId: String, onBack: () -> Unit, onOpen3D: (Int) -> Uni
             Row(Modifier.padding(horizontal = 4.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Quay lại") }
                 Text(vm.course.name, Modifier.weight(1f), style = MaterialTheme.typography.titleSmall, maxLines = 2)
+                if (layout != null && layout.holes.isNotEmpty()) OutlinedButton(onClick = onOpenHoles) { Text("Các hố") }
                 OutlinedButton(onClick = vm::toggleSatellite) { Text(if (satellite) "Bản đồ" else "Vệ tinh") }
                 IconButton(onClick = { vm.load(true) }) { Icon(Icons.Filled.Refresh, "Tải lại") }
             }
@@ -135,7 +136,7 @@ fun CourseMapScreen(courseId: String, onBack: () -> Unit, onOpen3D: (Int) -> Uni
                     Button(onClick = { vm.load(true) }) { Text("Thử lại") }
                 }
                 is LayoutState.Ready -> {
-                    if (hole != null) HoleCard(hole, green, fix?.point, measure, onOpen3D = { onOpen3D(selected!!) }, onClear = { vm.select(null) })
+                    if (hole != null) HoleCard(hole, green, fix?.point, measure, onOpen3D = { onOpen3D(selected!!) }, onOpenMap = { onOpenHoleMap(selected!!) }, onClear = { vm.select(null) })
                     HoleChips(s.layout.holes, selected, vm::select, nearest = if (fix != null) vm.nearestHoleIndex() else null)
                 }
             }
@@ -166,7 +167,7 @@ private fun HoleChips(holes: List<Hole>, selected: Int?, onSelect: (Int?) -> Uni
 }
 
 @Composable
-private fun HoleCard(hole: Hole, green: GreenInfo?, player: GeoPoint?, measure: GeoPoint?, onOpen3D: () -> Unit, onClear: () -> Unit) {
+private fun HoleCard(hole: Hole, green: GreenInfo?, player: GeoPoint?, measure: GeoPoint?, onOpen3D: () -> Unit, onOpenMap: () -> Unit, onClear: () -> Unit) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("Hố ${hole.ref}" + (hole.par?.let { " · Par $it" } ?: "") + " · ${fmtDistance(hole.lengthM)}", style = MaterialTheme.typography.titleMedium)
@@ -185,7 +186,8 @@ private fun HoleCard(hole: Hole, green: GreenInfo?, player: GeoPoint?, measure: 
                 Text("Chạm lên bản đồ để đo khoảng cách tới một điểm.", style = MaterialTheme.typography.bodySmall)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = onOpen3D) { Text("Xem 3D") }
+                Button(onClick = onOpenMap) { Text("Bản đồ hố") }
+                OutlinedButton(onClick = onOpen3D) { Text("3D") }
                 OutlinedButton(onClick = onClear) { Text("Cả sân") }
             }
         }
@@ -304,6 +306,8 @@ private fun buildOverlays(view: MapView, layout: CourseLayout, selected: Int?): 
         FeatureType.BUNKER -> Color.argb(210, 240, 225, 160) to Color.rgb(191, 161, 74)
         FeatureType.GREEN -> Color.argb(200, 0, 200, 83) to Color.rgb(0, 150, 60)
         FeatureType.CART_PATH -> 0 to Color.argb(160, 200, 200, 200)
+        FeatureType.OB -> 0 to Color.rgb(229, 57, 53)
+        FeatureType.TREE, FeatureType.TREE_ROW, FeatureType.PIN -> 0 to Color.TRANSPARENT
     }
     for (t in order) for (f in layout.features.filter { it.type == t }) {
         val (fillC, strokeC) = style(t)
@@ -320,6 +324,14 @@ private fun buildOverlays(view: MapView, layout: CourseLayout, selected: Int?): 
             setPoints(f.ring.map { OsmPoint(it.lat, it.lng) })
             outlinePaint.color = style(FeatureType.CART_PATH).second
             outlinePaint.strokeWidth = 3f
+            setOnClickListener { _, _, _ -> false }
+        }
+    }
+    for (f in layout.features.filter { it.type == FeatureType.OB }) {
+        out += Polyline(view).apply {
+            setPoints(f.ring.map { OsmPoint(it.lat, it.lng) })
+            outlinePaint.color = style(FeatureType.OB).second
+            outlinePaint.strokeWidth = 4f
             setOnClickListener { _, _, _ -> false }
         }
     }

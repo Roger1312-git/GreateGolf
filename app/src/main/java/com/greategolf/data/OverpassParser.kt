@@ -67,14 +67,24 @@ object OverpassParser {
             }
             val type = featureType(tags) ?: return
             val closed = geom.size >= 4 && geom.first() == geom.last()
-            if (type == FeatureType.CART_PATH) features += GeoFeature(type, geom, false)
-            else if (closed) features += GeoFeature(type, geom.dropLast(1), true)
+            when (type) {
+                FeatureType.CART_PATH, FeatureType.OB, FeatureType.TREE_ROW -> features += GeoFeature(type, geom, false)
+                else -> if (closed) features += GeoFeature(type, geom.dropLast(1), true)
+            }
         }
 
         for (i in 0 until els.length()) {
             val e = els.getJSONObject(i)
             val tags = e.optJSONObject("tags")
             when (e.optString("type")) {
+                "node" -> {
+                    val t = when {
+                        tags?.optString("golf") == "pin" -> FeatureType.PIN
+                        tags?.optString("natural") == "tree" -> FeatureType.TREE
+                        else -> null
+                    }
+                    if (t != null && e.has("lat")) features += GeoFeature(t, listOf(GeoPoint(e.getDouble("lat"), e.getDouble("lon"))), false)
+                }
                 "way" -> addGeometry(tags, points(e.optJSONArray("geometry")))
                 "relation" -> {
                     val members = e.optJSONArray("members") ?: continue
@@ -101,9 +111,11 @@ object OverpassParser {
             "water_hazard", "lateral_water_hazard" -> FeatureType.WATER
             "rough" -> FeatureType.ROUGH
             "cartpath", "path" -> FeatureType.CART_PATH
+            "out_of_bounds", "ob" -> FeatureType.OB
             else -> when {
                 tags.optString("natural") == "water" -> FeatureType.WATER
                 tags.optString("natural") == "wood" -> FeatureType.WOOD
+                tags.optString("natural") == "tree_row" -> FeatureType.TREE_ROW
                 else -> null
             }
         }

@@ -59,6 +59,7 @@ import com.greategolf.ui.RequireLocationOptional
 import com.greategolf.ui.appViewModel
 import com.greategolf.ui.course.CourseMap
 import com.greategolf.ui.course.Hole3DView
+import com.greategolf.ui.course.HoleMap2D
 import com.greategolf.ui.course.LayoutState
 import com.greategolf.ui.fmtToPar
 
@@ -86,7 +87,9 @@ fun RoundPlayScreen(
     val scores by vm.scores.collectAsState()
 
     var yards by rememberSaveable { mutableStateOf(false) }
-    var view3d by rememberSaveable { mutableStateOf(true) }
+    // 0 = illustrated 2D hole map (default), 1 = satellite perspective, 2 = OSM/satellite web map
+    var viewMode by rememberSaveable { mutableIntStateOf(0) }
+    var greenMode by rememberSaveable { mutableStateOf(false) }
     var menu by remember { mutableStateOf(false) }
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var confirmFinish by remember { mutableStateOf(false) }
@@ -109,7 +112,13 @@ fun RoundPlayScreen(
 
     Box(Modifier.fillMaxSize().background(Color(0xFF1B3A22))) {
         val holeForView = ref?.hole
-        if (view3d && layout != null && holeForView != null) {
+        if (viewMode == 0 && layout != null && holeForView != null) {
+            HoleMap2D(
+                layout = layout, hole = holeForView, green = green, player = player, target = measure,
+                onTarget = { vm.measure.value = it }, yards = yards, greenMode = greenMode,
+                modifier = Modifier.fillMaxSize(), bottomPad = 250.dp,
+            )
+        } else if (viewMode == 1 && layout != null && holeForView != null) {
             Hole3DView(
                 layout = layout, hole = holeForView, green = green, player = player, target = measure,
                 onTarget = { vm.measure.value = it }, yards = yards, satellite = true,
@@ -135,12 +144,19 @@ fun RoundPlayScreen(
                         Text("Par $par" + (len?.let { " · %.0f $unitLabel".format(unit(it)) } ?: ""),
                             fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                     }
-                    if (layout != null && ref != null) OutlinedButton(onClick = { view3d = !view3d }, colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)) { Text(if (view3d) "2D" else "3D") }
                     OutlinedButton(onClick = { yards = !yards }, colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)) { Text(unitLabel) }
                     Box {
                         IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "Menu", tint = Color.White) }
                         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                             DropdownMenuItem(text = { Text("Scorecard") }, onClick = { menu = false; onOpenScorecard(roundId) })
+                            if (layout != null && ref != null) DropdownMenuItem(
+                                text = { Text("Kiểu bản đồ: " + when (viewMode) { 0 -> "Minh họa 2D → Vệ tinh"; 1 -> "Vệ tinh → Bản đồ"; else -> "Bản đồ → Minh họa 2D" }) },
+                                onClick = { menu = false; viewMode = (viewMode + 1) % 3 },
+                            )
+                            if (viewMode == 0 && layout != null && ref != null) DropdownMenuItem(
+                                text = { Text(if (greenMode) "Xem cả hố" else "Phóng to green") },
+                                onClick = { menu = false; greenMode = !greenMode },
+                            )
                             val idx = ref?.index
                             if (course != null && idx != null) DropdownMenuItem(text = { Text("Xem 3D hố này") }, onClick = { menu = false; onOpen3D(course!!.id, idx) })
                             DropdownMenuItem(text = { Text("Đánh dấu green tại vị trí tôi") }, onClick = { menu = false; vm.markGreenHere() })

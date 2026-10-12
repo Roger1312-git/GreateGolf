@@ -27,6 +27,8 @@ import androidx.navigation.navArgument
 import com.greategolf.ui.clubs.ClubsScreen
 import com.greategolf.ui.course.CourseMapScreen
 import com.greategolf.ui.course.Hole3DScreen
+import com.greategolf.ui.course.HoleGridScreen
+import com.greategolf.ui.course.HoleMapScreen
 import com.greategolf.ui.map.MapScreen
 import com.greategolf.ui.home.HomeScreen
 import com.greategolf.ui.more.MoreScreen
@@ -45,7 +47,7 @@ private enum class Tab(val route: String, val label: String, val icon: ImageVect
 }
 
 private val MORE_ROUTES = listOf("clubs", "swing", "rounds", "round/")
-private val COURSE_ROUTES = listOf("course/", "hole3d/")
+private val COURSE_ROUTES = listOf("course/", "hole3d/", "holes/", "holemap/")
 
 @Composable
 fun GolfRoot() {
@@ -97,7 +99,23 @@ fun GolfRoot() {
             }
             composable("course/{id}", arguments = listOf(navArgument("id") { type = NavType.StringType })) { entry ->
                 val id = entry.arguments!!.getString("id")!!
-                CourseMapScreen(courseId = id, onBack = { nav.popBackStack() }, onOpen3D = { idx -> nav.navigate("hole3d/$id/$idx") })
+                CourseMapScreen(
+                    courseId = id, onBack = { nav.popBackStack() },
+                    onOpen3D = { idx -> nav.navigate("hole3d/$id/$idx") },
+                    onOpenHoles = { nav.navigate("holes/$id") },
+                    onOpenHoleMap = { idx -> nav.navigate("holemap/$id/$idx") },
+                )
+            }
+            composable("holes/{id}", arguments = listOf(navArgument("id") { type = NavType.StringType })) { entry ->
+                val id = entry.arguments!!.getString("id")!!
+                HoleGridScreen(id, onBack = { nav.popBackStack() }, onOpenHole = { idx -> nav.navigate("holemap/$id/$idx") })
+            }
+            composable(
+                "holemap/{id}/{idx}",
+                arguments = listOf(navArgument("id") { type = NavType.StringType }, navArgument("idx") { type = NavType.IntType }),
+            ) { entry ->
+                val id = entry.arguments!!.getString("id")!!
+                HoleMapScreen(id, entry.arguments!!.getInt("idx"), onBack = { nav.popBackStack() }, on3D = { idx -> nav.navigate("hole3d/$id/$idx") })
             }
             composable(
                 "hole3d/{id}/{idx}",

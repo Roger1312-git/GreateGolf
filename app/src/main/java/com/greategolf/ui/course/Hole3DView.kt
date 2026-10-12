@@ -59,42 +59,6 @@ import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sin
 
-/** A hole in local meters: x = right of the tee→green axis, y = along it, z = up. */
-private class Scene(
-    val hole: Hole,
-    val frame: LocalFrame,
-    val length: Double,
-    val green: V3,
-    val layers: List<Pair<FeatureType, List<List<V3>>>>,
-    val paths: List<List<V3>>,
-    val centerLine: List<V3>,
-    val zoom: Int,
-    val tiles: List<TileKey>,
-)
-
-private fun buildScene(layout: CourseLayout, hole: Hole, green: GreenInfo?): Scene {
-    val greenPt = green?.center ?: hole.greenEnd
-    val frame = LocalFrame(hole.tee, LayoutOps.bearingDeg(hole.tee, greenPt))
-    fun v(p: GeoPoint) = frame.toLocal(p).let { V3(it.first, it.second) }
-    val near = LayoutOps.featuresForHole(layout, hole)
-    val order = listOf(FeatureType.WOOD, FeatureType.WATER, FeatureType.FAIRWAY, FeatureType.TEE, FeatureType.BUNKER, FeatureType.GREEN)
-    val layers = order.map { t -> t to near.filter { it.type == t && it.closed }.map { f -> f.ring.map(::v) } }
-
-    // imagery tiles covering the hole corridor (+60 m margin)
-    val pts = hole.line + near.flatMap { it.ring } + listOfNotNull(green?.front, green?.back, green?.center)
-    val mLat = 60.0 / 111_195.0
-    val mLng = mLat / cos(Math.toRadians(pts.first().lat))
-    var z = 18
-    var tiles = emptyList<TileKey>()
-    while (tiles.isEmpty() && z >= 15) {
-        tiles = WebMercator.tilesCovering(pts.minOf { it.lat } - mLat, pts.minOf { it.lng } - mLng,
-            pts.maxOf { it.lat } + mLat, pts.maxOf { it.lng } + mLng, z)
-        if (tiles.isEmpty()) z--
-    }
-    return Scene(hole, frame, v(greenPt).y, v(greenPt), layers, near.filter { it.type == FeatureType.CART_PATH }.map { f -> f.ring.map(::v) },
-        hole.line.map(::v), z, tiles)
-}
-
 private fun layerColors(t: FeatureType): Pair<Color, Color> = when (t) {
     FeatureType.WOOD -> Color(0xFF1B4D1B) to Color(0xFF123512)
     FeatureType.WATER -> Color(0xFF2F8FD8) to Color(0xFF1B6BA8)
@@ -136,7 +100,7 @@ fun Hole3DView(
 ) {
     val ctx = LocalContext.current
     val repo = remember { (ctx.applicationContext as GolfApp).tiles }
-    val scene = remember(layout, hole, green) { buildScene(layout, hole, green) }
+    val scene = remember(layout, hole, green) { buildHoleScene(layout, hole, green) }
     val tiles = remember(scene) { mutableStateMapOf<TileKey, Bitmap>() }
     var imageryFailed by remember(scene) { mutableStateOf(false) }
 
@@ -200,7 +164,7 @@ fun Hole3DView(
 }
 
 private fun DrawScope.drawHole(
-    scene: Scene, cam: OrbitCamera, w: Float, h: Float, useImagery: Boolean, tiles: Map<TileKey, Bitmap>, layout: CourseLayout,
+    scene: HoleScene, cam: OrbitCamera, w: Float, h: Float, useImagery: Boolean, tiles: Map<TileKey, Bitmap>, layout: CourseLayout,
     player: GeoPoint?, target: GeoPoint?, yards: Boolean, text: Paint, bg: Paint, bmpPaint: Paint,
 ) {
     drawRect(Brush.verticalGradient(listOf(Color(0xFF6FB7E9), Color(0xFFDCEEFB))))
