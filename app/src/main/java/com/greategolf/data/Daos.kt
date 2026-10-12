@@ -22,6 +22,15 @@ interface RoundDao {
     @Query("SELECT roundId, SUM(strokes) AS strokes, SUM(par) AS par FROM hole_scores WHERE strokes > 0 GROUP BY roundId")
     fun totals(): Flow<List<RoundTotal>>
 
+    @Query("SELECT * FROM hole_scores")
+    fun allScores(): Flow<List<HoleScore>>
+
+    @Query("SELECT id FROM rounds WHERE finishedAt IS NULL ORDER BY startedAt DESC LIMIT 1")
+    suspend fun latestUnfinishedId(): Long?
+
+    @Query("UPDATE rounds SET finishedAt = :t WHERE id = :id")
+    suspend fun finish(id: Long, t: Long)
+
     @Insert suspend fun insert(round: Round): Long
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsert(scores: List<HoleScore>)
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsert(score: HoleScore)

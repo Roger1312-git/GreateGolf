@@ -3,6 +3,10 @@
 Kotlin + Jetpack Compose, Room, OpenStreetMap (osmdroid), Google Fused Location, ML Kit Pose Detection.
 `minSdk 26`, `targetSdk 35`. Giao diện tiếng Việt.
 
+Giao diện theo phong cách Golfshot / 18Birdies: 5 tab **Trang chủ · Sân · Chơi · Thống kê · Thêm**.
+Tab **Chơi** mở màn hình hố đầy đủ: bản đồ vệ tinh xoay tee→green, khoảng cách trước/giữa/sau green, hazard phía trước (bunker/nước với khoảng cách carry), chạm để đo, ghi điểm nhanh (gậy, putt, par, fairway, GIR tự tính, phạt), đo cú đánh bằng GPS, kết thúc vòng.
+Tab **Thống kê**: Handicap (ước tính), điểm TB, fairway/GIR, putt, phân bố birdie/par/bogey, xu hướng.
+
 | Tab | Tính năng |
 |---|---|
 | **Bản đồ** | 35 sân golf tại Việt Nam trên OpenStreetMap (tìm theo tên/tỉnh, lọc theo miền, vị trí của bạn, khoảng cách tới sân). Chọn sân → bắt đầu vòng / chơi với GPS. |

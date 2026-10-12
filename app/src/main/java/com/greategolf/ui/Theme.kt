@@ -7,11 +7,12 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
-private val Green = Color(0xFF2E7D32)
+private val Green = Color(0xFF1B5E20)
 private val Light = lightColorScheme(
     primary = Green, onPrimary = Color.White,
     primaryContainer = Color(0xFFC8E6C9), onPrimaryContainer = Color(0xFF0B3D10),
-    secondary = Color(0xFF6D4C41), tertiary = Color(0xFFF9A825),
+    secondary = Color(0xFF2E7D32), tertiary = Color(0xFFC6FF00),
+    surfaceVariant = Color(0xFFE8F0E8),
 )
 private val Dark = darkColorScheme(
     primary = Color(0xFF81C784), onPrimary = Color(0xFF0B3D10),

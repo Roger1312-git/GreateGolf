@@ -38,6 +38,9 @@ class GolfApp : Application() {
             osmdroidBasePath = filesDir
             osmdroidTileCache = cacheDir.resolve("osm")
         }
-        appScope.launch { repository.seedDefaultBag() }
+        appScope.launch {
+            repository.seedDefaultBag()
+            activeRoundId.value = repository.latestUnfinishedRoundId()
+        }
     }
 }

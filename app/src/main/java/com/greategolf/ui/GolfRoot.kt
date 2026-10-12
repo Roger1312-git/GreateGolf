@@ -3,11 +3,11 @@ package com.greategolf.ui
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ListAlt
-import androidx.compose.material.icons.filled.GpsFixed
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Map
-import androidx.compose.material.icons.filled.SportsGolf
-import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -28,18 +28,24 @@ import com.greategolf.ui.clubs.ClubsScreen
 import com.greategolf.ui.course.CourseMapScreen
 import com.greategolf.ui.course.Hole3DScreen
 import com.greategolf.ui.map.MapScreen
-import com.greategolf.ui.play.PlayScreen
+import com.greategolf.ui.home.HomeScreen
+import com.greategolf.ui.more.MoreScreen
+import com.greategolf.ui.play.PlayTab
+import com.greategolf.ui.stats.StatsScreen
 import com.greategolf.ui.score.RoundScreen
 import com.greategolf.ui.score.RoundsScreen
 import com.greategolf.ui.swing.SwingScreen
 
 private enum class Tab(val route: String, val label: String, val icon: ImageVector) {
-    Map("map", "Bản đồ", Icons.Filled.Map),
-    Play("play", "GPS", Icons.Filled.GpsFixed),
-    Score("rounds", "Scorecard", Icons.AutoMirrored.Filled.ListAlt),
-    Clubs("clubs", "Gậy", Icons.Filled.SportsGolf),
-    Swing("swing", "Swing", Icons.Filled.Videocam),
+    Home("home", "Trang chủ", Icons.Filled.Home),
+    Courses("map", "Sân", Icons.Filled.Map),
+    Play("play", "Chơi", Icons.Filled.PlayCircle),
+    Stats("stats", "Thống kê", Icons.Filled.BarChart),
+    More("more", "Thêm", Icons.Filled.MoreHoriz),
 }
+
+private val MORE_ROUTES = listOf("clubs", "swing", "rounds", "round/")
+private val COURSE_ROUTES = listOf("course/", "hole3d/")
 
 @Composable
 fun GolfRoot() {
@@ -58,8 +64,8 @@ fun GolfRoot() {
             NavigationBar {
                 Tab.entries.forEach { tab ->
                     val selected = route == tab.route ||
-                        (tab == Tab.Score && route?.startsWith("round/") == true) ||
-                        (tab == Tab.Map && (route?.startsWith("course/") == true || route?.startsWith("hole3d/") == true))
+                        (tab == Tab.More && route != null && MORE_ROUTES.any { route.startsWith(it) || route == it }) ||
+                        (tab == Tab.Courses && route != null && COURSE_ROUTES.any { route.startsWith(it) })
                     NavigationBarItem(
                         selected = selected,
                         onClick = { go(tab) },
@@ -70,8 +76,19 @@ fun GolfRoot() {
             }
         },
     ) { padding ->
-        NavHost(nav, startDestination = Tab.Map.route, modifier = Modifier.padding(padding).statusBarsPadding()) {
-            composable(Tab.Map.route) {
+        NavHost(nav, startDestination = Tab.Home.route, modifier = Modifier.padding(padding).statusBarsPadding()) {
+            composable(Tab.Home.route) {
+                HomeScreen(
+                    onPlay = { go(Tab.Play) },
+                    onOpenRound = { id -> nav.navigate("round/$id") },
+                    onStats = { go(Tab.Stats) },
+                    onCourses = { go(Tab.Courses) },
+                    onClubs = { nav.navigate("clubs") },
+                    onSwing = { nav.navigate("swing") },
+                    onHistory = { nav.navigate("rounds") },
+                )
+            }
+            composable(Tab.Courses.route) {
                 MapScreen(
                     onPlayHere = { go(Tab.Play) },
                     onOpenRound = { id -> nav.navigate("round/$id") },
@@ -88,16 +105,26 @@ fun GolfRoot() {
             ) { entry ->
                 Hole3DScreen(entry.arguments!!.getString("id")!!, entry.arguments!!.getInt("idx"), onBack = { nav.popBackStack() })
             }
-            composable(Tab.Play.route) { PlayScreen(onOpenScorecard = { id -> nav.navigate("round/$id") }) }
-            composable(Tab.Score.route) { RoundsScreen(onOpen = { id -> nav.navigate("round/$id") }) }
+            composable(Tab.Play.route) {
+                PlayTab(
+                    onOpenScorecard = { id -> nav.navigate("round/$id") },
+                    onOpen3D = { courseId, idx -> nav.navigate("hole3d/$courseId/$idx") },
+                    onFinished = { id -> nav.navigate("round/$id") },
+                )
+            }
+            composable(Tab.Stats.route) { StatsScreen() }
+            composable(Tab.More.route) {
+                MoreScreen(onClubs = { nav.navigate("clubs") }, onSwing = { nav.navigate("swing") }, onHistory = { nav.navigate("rounds") })
+            }
+            composable("rounds") { RoundsScreen(onOpen = { id -> nav.navigate("round/$id") }) }
             composable(
                 "round/{id}",
                 arguments = listOf(navArgument("id") { type = NavType.LongType }),
             ) { entry ->
                 RoundScreen(roundId = entry.arguments!!.getLong("id"), onBack = { nav.popBackStack() })
             }
-            composable(Tab.Clubs.route) { ClubsScreen() }
-            composable(Tab.Swing.route) { SwingScreen() }
+            composable("clubs") { ClubsScreen() }
+            composable("swing") { SwingScreen() }
         }
     }
 }

@@ -193,7 +193,7 @@ private fun HoleCard(hole: Hole, green: GreenInfo?, player: GeoPoint?, measure: 
 }
 
 @Composable
-private fun CourseMap(
+internal fun CourseMap(
     center: GeoPoint,
     layout: CourseLayout?,
     selected: Int?,

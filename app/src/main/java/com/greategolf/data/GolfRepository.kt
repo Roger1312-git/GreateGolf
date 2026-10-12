@@ -2,6 +2,8 @@ package com.greategolf.data
 
 import com.greategolf.domain.ClubAdvisor
 import com.greategolf.domain.ClubStats
+import com.greategolf.domain.HoleResult
+import com.greategolf.domain.RoundResult
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 
@@ -27,6 +29,17 @@ class GolfRepository(private val db: GolfDatabase) {
     }
 
     suspend fun setScore(score: HoleScore) = roundDao.upsert(score)
+    suspend fun finishRound(id: Long) = roundDao.finish(id, System.currentTimeMillis())
+    suspend fun latestUnfinishedRoundId(): Long? = roundDao.latestUnfinishedId()
+
+    /** Every round with its hole results, for statistics and handicap. */
+    val results: Flow<List<RoundResult>> = combine(roundDao.rounds(), roundDao.allScores()) { rounds, scores ->
+        val byRound = scores.groupBy { it.roundId }
+        rounds.map { r ->
+            RoundResult(r.id, r.startedAt, byRound[r.id].orEmpty().sortedBy { it.hole }
+                .map { HoleResult(it.par, it.strokes, it.putts, it.fairway, it.gir) })
+        }
+    }
     suspend fun deleteRound(id: Long) = roundDao.delete(id)
     suspend fun saveGreen(g: HoleGreen) = db.greens().upsert(g)
 

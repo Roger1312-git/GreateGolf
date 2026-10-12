@@ -33,8 +33,8 @@ import com.greategolf.domain.GeoMath
 import java.util.Locale
 
 @Composable
-inline fun <reified VM : ViewModel> appViewModel(crossinline create: (GolfApp) -> VM): VM =
-    viewModel(factory = viewModelFactory { initializer { create(this[APPLICATION_KEY] as GolfApp) } })
+inline fun <reified VM : ViewModel> appViewModel(key: String? = null, crossinline create: (GolfApp) -> VM): VM =
+    viewModel(key = key, factory = viewModelFactory { initializer { create(this[APPLICATION_KEY] as GolfApp) } })
 
 fun CreationExtras.app() = this[APPLICATION_KEY] as GolfApp
 

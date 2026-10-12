@@ -67,7 +67,7 @@ fun RoundsScreen(onOpen: (Long) -> Unit) {
             LazyColumn(contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(rows, key = { it.round.id }) { row ->
                     Card(
-                        Modifier.fillMaxWidth().clickable { vm.setActive(row.round.id); onOpen(row.round.id) },
+                        Modifier.fillMaxWidth().clickable { if (row.round.finishedAt == null) vm.setActive(row.round.id); onOpen(row.round.id) },
                         colors = if (row.round.id == active) CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer) else CardDefaults.cardColors(),
                     ) {
                         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {

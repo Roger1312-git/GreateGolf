@@ -1,6 +1,7 @@
 package com.greategolf.data
 
 import androidx.room.Entity
+import androidx.room.ColumnInfo
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
@@ -12,6 +13,7 @@ data class Round(
     val courseName: String,
     val startedAt: Long,
     val holeCount: Int = 18,
+    val finishedAt: Long? = null,
 )
 
 @Entity(
@@ -26,6 +28,10 @@ data class HoleScore(
     val par: Int = 4,
     val strokes: Int = 0, // 0 = not played yet
     val putts: Int = 0,
+    /** 0 = not recorded, 1 = hit, 2 = missed */
+    @ColumnInfo(defaultValue = "0") val fairway: Int = 0,
+    @ColumnInfo(defaultValue = "0") val gir: Int = 0,
+    @ColumnInfo(defaultValue = "0") val penalties: Int = 0,
 )
 
 /** Green position of a hole, recorded by the player standing on the green. */

@@ -21,6 +21,8 @@ data class CourseLayout(val features: List<GeoFeature>, val holes: List<Hole>) {
     val isEmpty get() = features.isEmpty() && holes.isEmpty()
 }
 
+data class HazardInfo(val type: FeatureType, val frontM: Double, val backM: Double)
+
 data class GreenInfo(val center: GeoPoint, val front: GeoPoint, val back: GeoPoint)
 
 /** Meters east/north of an origin, rotated so +v points along [bearingDeg] and +u is to the right. */
@@ -90,5 +92,27 @@ object LayoutOps {
         val len2 = dx * dx + dy * dy
         val t = if (len2 == 0.0) 0.0 else (((p.first - a.first) * dx + (p.second - a.second) * dy) / len2).coerceIn(0.0, 1.0)
         return hypot(p.first - (a.first + t * dx), p.second - (a.second + t * dy))
+    }
+
+    /**
+     * Bunkers / water ahead of the player along [hole] with the distance to their near edge (front, the
+     * "carry" you need to clear) and far edge (back). Nearest first.
+     */
+    fun hazardsAhead(layout: CourseLayout, hole: Hole, player: GeoPoint, maxM: Double = 350.0, corridorM: Double = 60.0, limit: Int = 6): List<HazardInfo> {
+        val target = hole.greenEnd
+        val frame = LocalFrame(player, bearingDeg(player, target))
+        val axis = LocalFrame(hole.tee, bearingDeg(hole.tee, target))
+        val line = hole.line.map { axis.toLocal(it) }
+        return layout.features
+            .filter { (it.type == FeatureType.BUNKER || it.type == FeatureType.WATER) && it.closed }
+            .filter { f -> f.ring.any { distToPolyline(axis.toLocal(it), line) <= corridorM } }
+            .filter { f -> f.ring.any { frame.toLocal(it).second > 0 } }
+            .map { f ->
+                val d = f.ring.map { GeoMath.distanceMeters(player, it) }
+                HazardInfo(f.type, d.min(), d.max())
+            }
+            .filter { it.frontM <= maxM }
+            .sortedBy { it.frontM }
+            .take(limit)
     }
 }

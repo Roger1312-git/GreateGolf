@@ -13,6 +13,7 @@ import com.greategolf.domain.GeoPoint
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.tasks.await
 
 class LocationProvider(context: Context) {
     private val client = LocationServices.getFusedLocationProviderClient(context.applicationContext)
@@ -40,4 +41,10 @@ class LocationProvider(context: Context) {
         client.requestLocationUpdates(request, callback, Looper.getMainLooper())
         awaitClose { client.removeLocationUpdates(callback) }
     }
+
+    /** Last known position (may be stale or null); good enough for sorting "courses near you". */
+    @SuppressLint("MissingPermission")
+    suspend fun lastKnown(): GeoPoint? = try {
+        client.lastLocation.await()?.let { GeoPoint(it.latitude, it.longitude) }
+    } catch (e: Exception) { null }
 }
