@@ -8,8 +8,8 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [Round::class, HoleScore::class, HoleGreen::class, Club::class, Shot::class, SwingRecord::class],
-    version = 2,
+    entities = [Round::class, HoleScore::class, HoleGreen::class, HoleTee::class, Club::class, Shot::class, SwingRecord::class],
+    version = 3,
     exportSchema = false,
 )
 abstract class GolfDatabase : RoomDatabase() {
@@ -30,9 +30,15 @@ abstract class GolfDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS hole_tees (courseId TEXT NOT NULL, hole INTEGER NOT NULL, lat REAL NOT NULL, lng REAL NOT NULL, PRIMARY KEY(courseId, hole))")
+            }
+        }
+
         fun create(context: Context): GolfDatabase =
             Room.databaseBuilder(context, GolfDatabase::class.java, "greategolf.db")
-                .addMigrations(MIGRATION_1_2)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                 .build()
     }
 }

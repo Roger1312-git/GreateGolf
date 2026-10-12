@@ -42,6 +42,9 @@ class GolfRepository(private val db: GolfDatabase) {
     }
     suspend fun deleteRound(id: Long) = roundDao.delete(id)
     suspend fun saveGreen(g: HoleGreen) = db.greens().upsert(g)
+    fun tees(courseId: String) = db.greens().tees(courseId)
+    suspend fun saveTee(t: HoleTee) = db.greens().upsertTee(t)
+    suspend fun clearHole(courseId: String, hole: Int) { db.greens().deleteTee(courseId, hole); db.greens().deleteGreen(courseId, hole) }
 
     suspend fun addShot(shot: Shot) = clubDao.insertShot(shot)
     suspend fun deleteShot(shot: Shot) = clubDao.deleteShot(shot)

@@ -6,12 +6,14 @@ import com.greategolf.GolfApp
 import com.greategolf.data.Course
 import com.greategolf.data.HoleGreen
 import com.greategolf.data.HoleScore
+import com.greategolf.data.HoleTee
 import com.greategolf.data.Shot
 import com.greategolf.domain.CourseLayout
 import com.greategolf.domain.DetectedShot
 import com.greategolf.domain.GeoFix
 import com.greategolf.domain.GeoMath
 import com.greategolf.domain.GeoPoint
+import com.greategolf.domain.FeatureType
 import com.greategolf.domain.GreenInfo
 import com.greategolf.domain.HazardInfo
 import com.greategolf.domain.Hole
@@ -30,7 +32,10 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+/** [index] is the hole's position in the mapped layout, or -1 for a hole the player defined by hand. */
 data class HoleRef(val index: Int, val hole: Hole)
+
+enum class Placing { NONE, TEE, GREEN }
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class RoundPlayViewModel(private val app: GolfApp, val roundId: Long) : ViewModel() {
@@ -83,15 +88,23 @@ class RoundPlayViewModel(private val app: GolfApp, val roundId: Long) : ViewMode
     private val layout: StateFlow<CourseLayout?> = layoutState.combine(hole) { s, _ -> (s as? LayoutState.Ready)?.layout }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
+    private val userGreens = course.flatMapLatest { c -> if (c == null) flowOf(emptyList<HoleGreen>()) else repo.greens(c.id) }
+    private val userTees = course.flatMapLatest { c -> if (c == null) flowOf(emptyList<HoleTee>()) else repo.tees(c.id) }
+
+    /** A hole defined by the player (tee + green) — wins over the OSM hole, and works where OSM has no data. */
+    val manualHole: StateFlow<Hole?> = combine(userTees, userGreens, hole) { t, g, h ->
+        val tee = t.firstOrNull { it.hole == h }; val gr = g.firstOrNull { it.hole == h }
+        if (tee != null && gr != null) Hole(h, null, listOf(GeoPoint(tee.lat, tee.lng), GeoPoint(gr.lat, gr.lng))) else null
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
     /** The mapped hole for the current hole number (on 27/36-hole sites, the one the player is nearest to). */
-    val holeRef: StateFlow<HoleRef?> = combine(layout, hole, fix) { l, h, f ->
+    val holeRef: StateFlow<HoleRef?> = combine(layout, hole, fix, manualHole) { l, h, f, manual ->
+        if (manual != null) return@combine HoleRef(-1, manual)
         val cands = l?.holes?.withIndex()?.filter { it.value.ref == h }.orEmpty()
         val pick = if (f == null) cands.firstOrNull()
         else cands.minByOrNull { c -> c.value.line.minOf { GeoMath.distanceMeters(it, f.point) } }
         pick?.let { HoleRef(it.index, it.value) }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
-
-    private val userGreens = course.flatMapLatest { c -> if (c == null) flowOf(emptyList<HoleGreen>()) else repo.greens(c.id) }
 
     val green: StateFlow<GreenInfo?> = combine(holeRef, layout, userGreens, hole) { ref, l, ug, h ->
         ug.firstOrNull { it.hole == h }?.let {
@@ -99,6 +112,13 @@ class RoundPlayViewModel(private val app: GolfApp, val roundId: Long) : ViewMode
         }
         if (l != null && ref != null) LayoutOps.greenOf(l, ref.hole) else null
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /** True when the mapped data has real shapes (fairway/green/bunker/water) for this hole, i.e. the illustrated map is worth showing. */
+    val hasDetail: StateFlow<Boolean> = combine(layout, holeRef) { l, ref ->
+        l != null && ref != null && LayoutOps.featuresForHole(l, ref.hole).any {
+            it.type in setOf(FeatureType.GREEN, FeatureType.FAIRWAY, FeatureType.BUNKER, FeatureType.WATER)
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     val hazards: StateFlow<List<HazardInfo>> = combine(layout, holeRef, fix) { l, ref, f ->
         if (l == null || ref == null) emptyList()
@@ -202,6 +222,34 @@ class RoundPlayViewModel(private val app: GolfApp, val roundId: Long) : ViewMode
             val name = clubStats.value.firstOrNull { it.clubId == clubId }?.name ?: "Gậy"
             message.value = "Đã lưu: $name %.0f m".format(shot.meters)
         }
+    }
+
+    // ---- defining a hole by hand (tee, then green) -------------------------------------------------
+    val placing = MutableStateFlow(Placing.NONE)
+
+    fun startPlacing() { placing.value = Placing.TEE; measure.value = null; message.value = null }
+    fun cancelPlacing() { placing.value = Placing.NONE }
+
+    /** Map tap: sets the tee / green while defining a hole, otherwise places the measuring target. */
+    fun mapTap(p: GeoPoint?) {
+        val c = course.value
+        when (placing.value) {
+            Placing.NONE -> measure.value = p
+            Placing.TEE -> if (p != null && c != null) viewModelScope.launch {
+                repo.saveTee(HoleTee(c.id, hole.value, p.lat, p.lng)); placing.value = Placing.GREEN
+            }
+            Placing.GREEN -> if (p != null && c != null) viewModelScope.launch {
+                repo.saveGreen(HoleGreen(c.id, hole.value, p.lat, p.lng)); placing.value = Placing.NONE
+                message.value = "Đã lưu hố ${hole.value}."
+            }
+        }
+    }
+
+    fun placeHere() { fix.value?.let { mapTap(it.point) } ?: run { message.value = "Chưa có tín hiệu GPS." } }
+
+    fun clearManualHole() {
+        val c = course.value ?: return
+        viewModelScope.launch { repo.clearHole(c.id, hole.value) }
     }
 
     fun markGreenHere() {

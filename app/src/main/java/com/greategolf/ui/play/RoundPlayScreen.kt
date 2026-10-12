@@ -14,6 +14,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.clickable
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -52,6 +59,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.greategolf.data.HoleScore
+import com.greategolf.domain.CourseLayout
 import com.greategolf.domain.FeatureType
 import com.greategolf.domain.GeoMath
 import com.greategolf.domain.GeoPoint
@@ -85,6 +93,9 @@ fun RoundPlayScreen(
     val measure by vm.measure.collectAsState()
     val score by vm.currentScore.collectAsState()
     val scores by vm.scores.collectAsState()
+    val manual by vm.manualHole.collectAsState()
+    val hasDetail by vm.hasDetail.collectAsState()
+    val placing by vm.placing.collectAsState()
 
     var yards by rememberSaveable { mutableStateOf(false) }
     // 0 = illustrated 2D hole map (default), 1 = satellite perspective, 2 = OSM/satellite web map
@@ -110,24 +121,33 @@ fun RoundPlayScreen(
     val par = score?.par ?: ref?.hole?.par ?: 4
     val player = fix?.point
 
+    val viewLayout = layout ?: CourseLayout(emptyList(), emptyList())
+    // Illustrated map only makes sense when OSM has shapes for the hole; a hand-defined hole shows satellite.
+    val effMode = when {
+        placing != Placing.NONE -> 2
+        viewMode == 0 && !hasDetail -> 1
+        else -> viewMode
+    }
+
     Box(Modifier.fillMaxSize().background(Color(0xFF1B3A22))) {
         val holeForView = ref?.hole
-        if (viewMode == 0 && layout != null && holeForView != null) {
+        if (effMode == 0 && holeForView != null) {
             HoleMap2D(
-                layout = layout, hole = holeForView, green = green, player = player, target = measure,
-                onTarget = { vm.measure.value = it }, yards = yards, greenMode = greenMode,
+                layout = viewLayout, hole = holeForView, green = green, player = player, target = measure,
+                onTarget = vm::mapTap, yards = yards, greenMode = greenMode,
                 modifier = Modifier.fillMaxSize(), bottomPad = 250.dp,
             )
-        } else if (viewMode == 1 && layout != null && holeForView != null) {
+        } else if (effMode == 1 && holeForView != null) {
             Hole3DView(
-                layout = layout, hole = holeForView, green = green, player = player, target = measure,
-                onTarget = { vm.measure.value = it }, yards = yards, satellite = true,
+                layout = viewLayout, hole = holeForView, green = green, player = player, target = measure,
+                onTarget = vm::mapTap, yards = yards, satellite = true,
                 modifier = Modifier.fillMaxSize(), bottomPad = 250.dp,
             )
         } else course?.let { c ->
             CourseMap(
-                center = c.location, layout = layout, selected = ref?.index, satellite = true,
-                player = player, measure = measure, onTap = { vm.measure.value = it }, modifier = Modifier.fillMaxSize(),
+                center = player?.takeIf { GeoMath.distanceMeters(it, c.location) < 5_000 } ?: c.location,
+                layout = layout, selected = ref?.index?.takeIf { it >= 0 }, satellite = true,
+                player = player, measure = measure, onTap = vm::mapTap, modifier = Modifier.fillMaxSize(), manual = manual,
             )
         }
 
@@ -149,19 +169,52 @@ fun RoundPlayScreen(
                         IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "Menu", tint = Color.White) }
                         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                             DropdownMenuItem(text = { Text("Scorecard") }, onClick = { menu = false; onOpenScorecard(roundId) })
-                            if (layout != null && ref != null) DropdownMenuItem(
+                            if (ref != null) DropdownMenuItem(
                                 text = { Text("Kiểu bản đồ: " + when (viewMode) { 0 -> "Minh họa 2D → Vệ tinh"; 1 -> "Vệ tinh → Bản đồ"; else -> "Bản đồ → Minh họa 2D" }) },
                                 onClick = { menu = false; viewMode = (viewMode + 1) % 3 },
                             )
-                            if (viewMode == 0 && layout != null && ref != null) DropdownMenuItem(
+                            if (effMode == 0 && ref != null) DropdownMenuItem(
                                 text = { Text(if (greenMode) "Xem cả hố" else "Phóng to green") },
                                 onClick = { menu = false; greenMode = !greenMode },
                             )
                             val idx = ref?.index
-                            if (course != null && idx != null) DropdownMenuItem(text = { Text("Xem 3D hố này") }, onClick = { menu = false; onOpen3D(course!!.id, idx) })
+                            if (course != null && idx != null && idx >= 0) DropdownMenuItem(text = { Text("Xem 3D hố này") }, onClick = { menu = false; onOpen3D(course!!.id, idx) })
                             DropdownMenuItem(text = { Text("Đánh dấu green tại vị trí tôi") }, onClick = { menu = false; vm.markGreenHere() })
+                            if (course != null) DropdownMenuItem(text = { Text("Tự đặt tee/green hố $hole") }, onClick = { menu = false; vm.startPlacing() })
+                            if (manual != null) DropdownMenuItem(text = { Text("Xóa tee/green tự đặt") }, onClick = { menu = false; vm.clearManualHole() })
                             DropdownMenuItem(text = { Text("Tải lại dữ liệu sân") }, onClick = { menu = false; vm.reloadLayout() })
                             DropdownMenuItem(text = { Text("Kết thúc vòng") }, onClick = { menu = false; confirmFinish = true })
+                        }
+                    }
+                }
+            }
+
+            HoleTabs(count = round?.holeCount ?: 18, selected = hole, scores = scores, onSelect = { vm.hole.value = it; vm.measure.value = null; vm.cancelPlacing() })
+
+            if (placing != Placing.NONE) {
+                Card(Modifier.fillMaxWidth().padding(8.dp), colors = CardDefaults.cardColors(containerColor = Panel, contentColor = Color.White)) {
+                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(if (placing == Placing.TEE) "Hố $hole · Bước 1/2: chạm vào vị trí TEE trên bản đồ" else "Hố $hole · Bước 2/2: chạm vào vị trí GREEN trên bản đồ",
+                            fontWeight = FontWeight.Bold)
+                        Text("Chỉ cần làm một lần cho mỗi hố — app nhớ cho các vòng sau.", fontSize = 12.sp, color = Color(0xFFB0BEC5))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(onClick = vm::placeHere, enabled = player != null) { Text("Dùng vị trí GPS của tôi") }
+                            OutlinedButton(onClick = vm::cancelPlacing, colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)) { Text("Hủy") }
+                        }
+                    }
+                }
+            } else if (ref == null && layoutState !is LayoutState.Loading) {
+                Card(Modifier.fillMaxWidth().padding(8.dp), colors = CardDefaults.cardColors(containerColor = Panel, contentColor = Color.White)) {
+                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("Chưa có bản đồ cho hố $hole", fontWeight = FontWeight.Bold)
+                        Text(
+                            (if (layoutState is LayoutState.Failed) "Không tải được dữ liệu sân (cần Internet). " else "OpenStreetMap chưa có hố này. ") +
+                                "Bạn có thể tự đặt tee và green (2 lần chạm) để có bản đồ riêng của hố.",
+                            fontSize = 12.sp, color = Color(0xFFB0BEC5),
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(onClick = vm::startPlacing, enabled = course != null) { Text("Đặt tee & green") }
+                            OutlinedButton(onClick = vm::reloadLayout, colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)) { Text("Tải lại dữ liệu sân") }
                         }
                     }
                 }
@@ -203,8 +256,6 @@ fun RoundPlayScreen(
                 }
             }
             if (layoutState is LayoutState.Loading) Text("Đang tải dữ liệu sân…", color = Color.White, modifier = Modifier.padding(horizontal = 12.dp))
-            if (layoutState is LayoutState.NoData && course != null) Text("Chưa có dữ liệu hố trên OSM — chạm bản đồ để đo, hoặc đánh dấu green.",
-                color = Color.White, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 12.dp))
         }
 
         // ---- bottom panel --------------------------------------------------------------------
@@ -233,6 +284,26 @@ fun RoundPlayScreen(
         confirmButton = { androidx.compose.material3.TextButton(onClick = { confirmFinish = false; vm.finish { onFinished(roundId) } }) { Text("Kết thúc") } },
         dismissButton = { androidx.compose.material3.TextButton(onClick = { confirmFinish = false }) { Text("Tiếp tục chơi") } },
     )
+}
+
+/** Numbered hole tabs (1..N): tap to show that hole's map. Scored holes are filled. */
+@Composable
+private fun HoleTabs(count: Int, selected: Int, scores: List<HoleScore>, onSelect: (Int) -> Unit) {
+    val state = rememberLazyListState()
+    LaunchedEffect(selected) { state.animateScrollToItem((selected - 3).coerceAtLeast(0)) }
+    LazyRow(state = state, modifier = Modifier.fillMaxWidth().background(Color(0xCC0B2412)).padding(vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp)) {
+        itemsIndexed((1..count).toList()) { _, n ->
+            val done = scores.any { it.hole == n && it.strokes > 0 }
+            val sel = n == selected
+            Box(
+                Modifier.size(38.dp).clip(CircleShape)
+                    .background(if (sel) Lime else if (done) Color(0xFF2E7D32) else Color(0x33FFFFFF))
+                    .clickable { onSelect(n) },
+                contentAlignment = Alignment.Center,
+            ) { Text("$n", color = if (sel) Color.Black else Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp) }
+        }
+    }
 }
 
 @Composable

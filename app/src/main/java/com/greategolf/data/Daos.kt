@@ -45,6 +45,14 @@ interface GreenDao {
     fun greens(courseId: String): Flow<List<HoleGreen>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsert(g: HoleGreen)
+
+    @Query("SELECT * FROM hole_tees WHERE courseId = :courseId")
+    fun tees(courseId: String): Flow<List<HoleTee>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertTee(t: HoleTee)
+
+    @Query("DELETE FROM hole_tees WHERE courseId = :courseId AND hole = :hole") suspend fun deleteTee(courseId: String, hole: Int)
+    @Query("DELETE FROM hole_greens WHERE courseId = :courseId AND hole = :hole") suspend fun deleteGreen(courseId: String, hole: Int)
 }
 
 @Dao

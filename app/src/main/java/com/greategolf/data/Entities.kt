@@ -38,6 +38,10 @@ data class HoleScore(
 @Entity(tableName = "hole_greens", primaryKeys = ["courseId", "hole"])
 data class HoleGreen(val courseId: String, val hole: Int, val lat: Double, val lng: Double)
 
+/** Tee position of a hole, recorded by the player (used with [HoleGreen] when the map has no data for the hole). */
+@Entity(tableName = "hole_tees", primaryKeys = ["courseId", "hole"])
+data class HoleTee(val courseId: String, val hole: Int, val lat: Double, val lng: Double)
+
 @Entity(tableName = "clubs")
 data class Club(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,

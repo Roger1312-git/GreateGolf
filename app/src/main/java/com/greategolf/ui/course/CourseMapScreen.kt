@@ -77,6 +77,7 @@ private val EsriSatellite = object : OnlineTileSourceBase(
 private class MapHolder {
     var layoutRef: CourseLayout? = null
     var selectedRef: Int? = null
+    var manualRef: Hole? = null
     var initialised = false
     var tileName: String? = null
     val staticOverlays = ArrayList<Overlay>()
@@ -204,6 +205,8 @@ internal fun CourseMap(
     measure: GeoPoint?,
     onTap: (GeoPoint?) -> Unit,
     modifier: Modifier = Modifier,
+    /** A hole defined by hand (tee + green line) to frame and draw when there is no mapped hole. */
+    manual: Hole? = null,
 ) {
     val ctx = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -233,16 +236,17 @@ internal fun CourseMap(
         val src = if (satellite) EsriSatellite else TileSourceFactory.MAPNIK
         if (holder.tileName != src.name()) { view.setTileSource(src); holder.tileName = src.name() }
 
-        if (!holder.initialised || holder.layoutRef !== layout || holder.selectedRef != selected) {
+        if (!holder.initialised || holder.layoutRef !== layout || holder.selectedRef != selected || holder.manualRef != manual) {
             val firstLayout = holder.layoutRef !== layout
             holder.initialised = true
             view.overlays.removeAll(holder.staticOverlays.toSet())
             holder.staticOverlays.clear()
             if (layout != null) holder.staticOverlays += buildOverlays(view, layout, selected)
+            if (manual != null) holder.staticOverlays += manualOverlays(view, manual)
             // keep the tap overlay (index 0) under everything, dynamic markers on top
             view.overlays.addAll(1, holder.staticOverlays)
-            holder.layoutRef = layout; holder.selectedRef = selected
-            frame(view, layout, selected, firstLayout)
+            holder.layoutRef = layout; holder.selectedRef = selected; holder.manualRef = manual
+            frame(view, layout, selected, firstLayout, manual)
         }
 
         holder.player?.let { view.overlays.remove(it) }
@@ -253,10 +257,10 @@ internal fun CourseMap(
     })
 }
 
-private fun frame(view: MapView, layout: CourseLayout?, selected: Int?, first: Boolean) {
-    val hole = selected?.let { layout?.holes?.getOrNull(it) }
-    if (hole != null && layout != null) {
-        val g = LayoutOps.greenOf(layout, hole)
+private fun frame(view: MapView, layout: CourseLayout?, selected: Int?, first: Boolean, manual: Hole?) {
+    val hole = manual ?: selected?.let { layout?.holes?.getOrNull(it) }
+    if (hole != null) {
+        val g = layout?.let { LayoutOps.greenOf(it, hole) }
         val pts = hole.line + listOfNotNull(g?.front, g?.back)
         // Rotate so the tee is at the bottom and the green at the top.
         view.mapOrientation = -LayoutOps.bearingDeg(hole.tee, hole.greenEnd).toFloat()
@@ -293,6 +297,27 @@ private fun circleIcon(view: MapView, label: String?, color: Int, radiusDp: Int)
     }
     return BitmapDrawable(view.resources, bmp)
 }
+
+private fun manualOverlays(view: MapView, h: Hole): List<Overlay> = listOf(
+    Polyline(view).apply {
+        setPoints(h.line.map { OsmPoint(it.lat, it.lng) })
+        outlinePaint.color = Color.WHITE
+        outlinePaint.strokeWidth = 5f
+        setOnClickListener { _, _, _ -> false }
+    },
+    Marker(view).apply {
+        position = OsmPoint(h.tee.lat, h.tee.lng)
+        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+        icon = circleIcon(view, "T", Color.rgb(255, 87, 34), 11)
+        setOnMarkerClickListener { _, _ -> true }
+    },
+    Marker(view).apply {
+        position = OsmPoint(h.greenEnd.lat, h.greenEnd.lng)
+        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+        icon = circleIcon(view, "G", Color.rgb(0, 150, 60), 11)
+        setOnMarkerClickListener { _, _ -> true }
+    },
+)
 
 private fun buildOverlays(view: MapView, layout: CourseLayout, selected: Int?): List<Overlay> {
     val out = ArrayList<Overlay>()
