@@ -1,0 +1,12 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- flag pole -->
+    <path android:fillColor="#FFFFFF" android:pathData="M53,28h3v42h-3z" />
+    <!-- flag -->
+    <path android:fillColor="#FFEB3B" android:pathData="M56,28l18,8l-18,8z" />
+    <!-- ball -->
+    <path android:fillColor="#FFFFFF" android:pathData="M44,76a6,6 0,1 0,12 0a6,6 0,1 0,-12 0z" />
+    <!-- green -->
+    <path android:fillColor="#A5D6A7" android:pathData="M30,82q24,-8 48,0q-24,8 -48,0z" />
+</vector>
